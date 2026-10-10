@@ -90,7 +90,7 @@ uvicorn app.main:app --reload         # http://localhost:8000
 The trained artifacts and the synthetic portfolio are committed, so `pip install -r requirements.txt && uvicorn app.main:app` is enough to run the site.
 
 ## Deployment
-- **Prototype.** A Docker image (`Dockerfile`) is deployed on Render from this repository. Every push to `main` redeploys, and the deploy history is kept in Render and in the commit history. Tests run on every push (GitHub Actions, `.github/workflows/ci.yml`).
+- **Prototype.** A Docker image (`Dockerfile`) is deployed on Render (Frankfurt) from this public repository. Each deploy is started from the Render dashboard for a specific commit of `main`, and Render keeps the deploy history with commit hashes. The deployed commit is the repository HEAD at submission. Tests run on every push (GitHub Actions, `.github/workflows/ci.yml`).
 - **Production design (customer data never leaves the bank):**
   - one on-prem server inside MKBANK runs the same container;
   - **no external API is called**: the models are a few hundred KB, and letters are templates;
