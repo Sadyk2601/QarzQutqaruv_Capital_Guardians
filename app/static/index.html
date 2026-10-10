@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>QarzQutqaruv</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <!-- Chart.js подключен с CDN для графика -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  </head>
+  <body>
+    <div class="header">
+      <div class="disclaimer">
+        Synthetic demo data · Model trained on public UCI data
+      </div>
+      <h1>QarzQutqaruv</h1>
+      <div class="lang-switch">
+        <label>Reasons Language:</label>
+        <select id="langSelect">
+          <option value="en">EN</option>
+          <option value="ru">RU</option>
+          <option value="uz">UZ</option>
+        </select>
+      </div>
+      <nav class="tabs">
+        <button class="tab-btn active" data-target="tab-today">Today</button>
+        <button class="tab-btn" data-target="tab-borrower">Borrower</button>
+        <button class="tab-btn" data-target="tab-check">Check (Jury)</button>
+        <button class="tab-btn" data-target="tab-quality">Quality</button>
+        <button class="tab-btn" data-target="tab-audit">Audit Log</button>
+      </nav>
+    </div>
+
+    <div class="content">
+      <!-- 1. Today Tab -->
+      <div id="tab-today" class="tab-pane active">
+        <div class="summary-cards" id="summaryCards"></div>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px">
+          <button class="btn" id="sortRiskBtn">Sort by Risk</button>
+          <button class="btn" id="sortMoneyBtn">Sort by Money</button>
+        </div>
+        <div id="portfolioList"></div>
+      </div>
+
+      <!-- 2. Borrower Tab -->
+      <div id="tab-borrower" class="tab-pane">
+        <div id="borrowerContent">Select a borrower from the 'Today' tab.</div>
+      </div>
+
+      <!-- 3. Check Tab -->
+      <div id="tab-check" class="tab-pane">
+        <h3>Test Custom Data</h3>
+        <textarea
+          id="checkJson"
+          rows="18"
+          style="font-family: monospace"
+        ></textarea>
+        <button id="scoreBtn" class="btn">Score Data</button>
+        <div id="checkResult" style="margin-top: 15px"></div>
+      </div>
+
+      <!-- 4. Quality Tab -->
+      <div id="tab-quality" class="tab-pane">
+        <h3>Model Quality Metrics</h3>
+        <div id="qualityContent">Loading...</div>
+        <h3>Known Limitations</h3>
+        <ul>
+          <li>
+            New loans (<6 months history) are rejected to ensure reliable
+            baseline.
+          </li>
+          <li>
+            Sudden shocks (illness, fire) cannot be predicted by past signals.
+          </li>
+          <li>Model trained on Taiwan data; requires retraining for pilot.</li>
+          <li>
+            Seasonal business drops might look like defaults without 12+ months
+            history.
+          </li>
+          <li>
+            Intentional non-payers with perfect prior history show no signals.
+          </li>
+        </ul>
+      </div>
+
+      <!-- 5. Audit Tab -->
+      <div id="tab-audit" class="tab-pane">
+        <button id="verifyAuditBtn" class="btn">Verify Integrity</button>
+        <div id="verifyResult" style="margin: 10px 0; font-weight: bold"></div>
+        <h3>Recent Logs</h3>
+        <div id="auditList"></div>
+      </div>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
