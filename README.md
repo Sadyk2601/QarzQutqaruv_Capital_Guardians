@@ -1,6 +1,6 @@
 # QarzQutqaruv: early warning & rescue plans for MKBANK loan officers
 
-**Live demo:** `<RENDER_URL>` · **Team:** Capital Guardians (WIUT Hackathon 2026, FinTech / AI in Finance)
+**Live demo:** <https://qarzqutqaruv.onrender.com> (free instance: the first visit after a quiet period can take ~50 s to wake up) · **Team:** Capital Guardians (WIUT Hackathon 2026, FinTech / AI in Finance)
 **Mode:** Partner product for **MKBANK**. Owner: Risk Management Department (portfolio monitoring). Users: loan officers and mahalla bankers.
 
 > Banks learn that a borrower is in trouble 3 months too late, when the loan is already a problem loan.
