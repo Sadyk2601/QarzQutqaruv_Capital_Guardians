@@ -34,17 +34,26 @@ class ScoringEngine:
         t = self.thresholds(segment)
         return "red" if prob >= t["red"] else ("yellow" if prob >= t["yellow"] else "green")
 
+    def score_many(self, feature_rows) -> list:
+        """Score many borrowers in one call. One thread: small cloud instances have a
+        fraction of a CPU, and many OpenMP threads would fight over it."""
+        X = np.array([[f[name] for name in FEATURES] for f in feature_rows])
+        raw = self.booster.predict(X, num_threads=1)
+        probs = np.clip(np.interp(raw, self.cal_x, self.cal_y), 0, 1)
+        contribs = self.booster.predict(X, pred_contrib=True, num_threads=1)[:, :-1]  # last column = bias
+        return [{"prob": float(p), "features": f, "contrib": dict(zip(FEATURES, map(float, c)))}
+                for p, f, c in zip(probs, feature_rows, contribs)]
+
     def score(self, due, paid, delay) -> dict:
-        feats = make_features(due, paid, delay)
-        X = np.array([[feats[f] for f in FEATURES]])
-        raw = float(self.booster.predict(X)[0])
-        prob = float(np.clip(np.interp(raw, self.cal_x, self.cal_y), 0, 1))
-        contrib = self.booster.predict(X, pred_contrib=True)[0][:-1]  # last column = bias
-        return {"prob": prob, "features": feats, "contrib": dict(zip(FEATURES, map(float, contrib)))}
+        return self.score_many([make_features(due, paid, delay)])[0]
+
+    @staticmethod
+    def history_features(history) -> dict:
+        h = history[-6:]
+        return make_features([x["due"] for x in h], [x["paid"] for x in h], [delay_months(x["days_late"]) for x in h])
 
     def score_history(self, history) -> dict:
-        h = history[-6:]
-        return self.score([x["due"] for x in h], [x["paid"] for x in h], [delay_months(x["days_late"]) for x in h])
+        return self.score_many([self.history_features(history)])[0]
 
     @staticmethod
     def reasons(features: dict, contrib: dict, lang: str = "en", k: int = 3) -> list:

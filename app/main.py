@@ -56,18 +56,24 @@ async def guard(request: Request, call_next):
     return response
 
 
-def _score(b):
-    s = engine.score_history(b["history"])
+def _apply(b, s):
     b.update(prob=s["prob"], features=s["features"], contrib=s["contrib"],
              band=engine.band(s["prob"], b.get("segment", "micro_business")))
     b["money_at_risk"] = b["prob"] * b["outstanding"]
     return b
 
 
+def _score(b):
+    return _apply(b, engine.score_history(b["history"]))
+
+
 def load_portfolio():
+    """Score the whole demo portfolio in one batch (2 model calls instead of 1,000)."""
     PORTFOLIO.clear()
-    for b in json.loads((ROOT / "data" / "demo_portfolio.json").read_text(encoding="utf-8")):
-        PORTFOLIO[b["id"]] = _score(b)
+    borrowers = json.loads((ROOT / "data" / "demo_portfolio.json").read_text(encoding="utf-8"))
+    scores = engine.score_many([engine.history_features(b["history"]) for b in borrowers])
+    for b, s in zip(borrowers, scores):
+        PORTFOLIO[b["id"]] = _apply(b, s)
 
 
 def card(b, lang="en"):

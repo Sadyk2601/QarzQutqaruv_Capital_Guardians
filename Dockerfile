@@ -10,6 +10,7 @@ COPY --chown=user model/__init__.py model/features.py ./model/
 COPY --chown=user model/artifacts ./model/artifacts
 COPY --chown=user data/demo_portfolio.json ./data/demo_portfolio.json
 USER user
-ENV AUDIT_DB_PATH=/tmp/audit.db PYTHONUNBUFFERED=1 PORT=7860
+# One OpenMP thread: free cloud instances get a fraction of a CPU
+ENV AUDIT_DB_PATH=/tmp/audit.db PYTHONUNBUFFERED=1 PORT=7860 OMP_NUM_THREADS=1
 EXPOSE 7860
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

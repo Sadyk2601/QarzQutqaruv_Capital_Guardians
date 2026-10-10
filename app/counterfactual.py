@@ -30,7 +30,7 @@ def path_to_green(engine, history, installment, segment, prob_now, lang="en"):
     arrears = max(0, last["due"] - last["paid"])
     due_next = installment + arrears
     t = TEXT.get(lang, TEXT["en"])
-    best = {}
+    payments, rows = [], []
     for step in range(0, 21):
         x = int(due_next * step / 20)
         if x >= due_next:
@@ -39,8 +39,11 @@ def path_to_green(engine, history, installment, segment, prob_now, lang="en"):
             days = last["days_late"]
         else:
             days = min(365, last["days_late"] + 30)
-        hist = history + [{"due": due_next, "paid": x, "days_late": days}]
-        p = engine.score_history(hist)["prob"]
+        payments.append(x)
+        rows.append(engine.history_features(history + [{"due": due_next, "paid": x, "days_late": days}]))
+    probs = [s["prob"] for s in engine.score_many(rows)]  # one batch call for all 21 what-ifs
+    best = {}
+    for step, (x, p) in enumerate(zip(payments, probs)):
         band = engine.band(p, segment)
         if band == "green" and "green" not in best:
             best["green"] = (x, p)
