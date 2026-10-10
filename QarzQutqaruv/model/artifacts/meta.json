@@ -1,0 +1,23 @@
+{
+  "model_version": "lgbm-uci-v1-2026-10-10",
+  "features": [
+    "delay_last",
+    "delay_max_recent",
+    "n_delay_months",
+    "delay_trend",
+    "paid_last_vs_norm",
+    "paid_recent_vs_norm",
+    "cover_last",
+    "cover_mean",
+    "cover_drop",
+    "due_growth",
+    "paid_cv",
+    "zero_pay_months",
+    "decline_streak"
+  ],
+  "thresholds": {
+    "red": 0.380327868852459,
+    "yellow": 0.14084507042253522
+  },
+  "horizon_months": 1
+}
