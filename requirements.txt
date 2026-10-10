@@ -1,6 +1,5 @@
-fastapi==0.115.*
-uvicorn[standard]==0.30.*
-pydantic==2.*
-numpy==2.*
-pandas==2.*
-lightgbm==4.*
+fastapi==0.143.0
+uvicorn==0.54.0
+pydantic==2.14.0
+numpy==2.5.3
+lightgbm==4.7.0

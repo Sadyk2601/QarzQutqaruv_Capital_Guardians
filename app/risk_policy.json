@@ -1,0 +1,9 @@
+{
+  "set_by": "Risk Management Department (demo values)",
+  "note": "Policy, not the model: the probability is the same, only the zone threshold moves by segment.",
+  "segments": {
+    "household":      {"label": "Household / family loan (up to 30M)", "shift": -0.02},
+    "micro_business": {"label": "Micro business (30-100M)",            "shift": 0.0},
+    "sme":            {"label": "Small & medium business (over 100M)", "shift": 0.05}
+  }
+}

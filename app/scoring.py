@@ -1,82 +1,55 @@
-import os
+"""Model 1: risk of default next month + plain-language reasons."""
 import json
-import numpy as np
+from pathlib import Path
+
 import lightgbm as lgb
-from model.features import make_features, FEATURES
-from app.reasons import REASONS
+import numpy as np
+
+from app.reasons import NO_RISK, reason_text
+from model.features import FEATURES, make_features
+
+ROOT = Path(__file__).resolve().parents[1]
+ART = ROOT / "model" / "artifacts"
+
+
+def delay_months(days_late: int) -> int:
+    return int(min(9, -(-int(days_late) // 30)))  # ceil(days / 30), capped at 9
+
 
 class ScoringEngine:
-    def __init__(self, artifacts_dir="model/artifacts"):
-        self.model_path = os.path.join(artifacts_dir, "model.txt")
-        self.meta_path = os.path.join(artifacts_dir, "meta.json")
-        self.cal_path = os.path.join(artifacts_dir, "calibration.json")
-        
-        self.booster = lgb.Booster(model_file=self.model_path)
-        
-        with open(self.meta_path, "r", encoding="utf-8") as f:
-            self.meta = json.load(f)
-            
-        with open(self.cal_path, "r", encoding="utf-8") as f:
-            self.cal = json.load(f)
-            
-        self.red_th = self.meta["thresholds"]["red"]
-        self.yellow_th = self.meta["thresholds"]["yellow"]
+    def __init__(self, artifacts=ART):
+        self.booster = lgb.Booster(model_file=str(artifacts / "model.txt"))
+        self.meta = json.loads((artifacts / "meta.json").read_text(encoding="utf-8"))
+        cal = json.loads((artifacts / "calibration.json").read_text(encoding="utf-8"))
+        self.cal_x, self.cal_y = np.array(cal["x"]), np.array(cal["y"])
+        self.policy = json.loads((Path(__file__).parent / "risk_policy.json").read_text(encoding="utf-8"))
+        self.version = self.meta["model_version"]
 
-    def score(self, due: list, paid: list, delay: list, lang: str = "en", outstanding: float = 0.0) -> dict:
-        # 1. Генерация признаков
-        feats_dict = make_features(due, paid, delay)
-        X = np.array([[feats_dict[f] for f in FEATURES]])
-        
-        # 2. Предсказание сырой вероятности
-        raw_pred = self.booster.predict(X)[0]
-        
-        # 3. Калибровка вероятности через интерполяцию
-        prob = float(np.interp(raw_pred, self.cal["x"], self.cal["y"]))
-        prob = np.clip(prob, 0.0, 1.0)
-        
-        # 4. Определение зоны риска
-        if prob >= self.red_th:
-            band = "red"
-        elif prob >= self.yellow_th:
-            band = "yellow"
-        else:
-            band = "green"
-            
-        # 5. Получение вклада признаков (SHAP-like через pred_contrib)
-        contribs = self.booster.predict(X, pred_contrib=True)[0]
-        # Последний элемент в contribs — это базовое смещение модели, отбрасываем его
-        feature_contribs = list(zip(FEATURES, contribs[:-1]))
-        # Сортируем по силе положительного вклада в риск (наиболее опасные факторы сверху)
-        feature_contribs.sort(key=lambda x: x[1], reverse=True)
-        
-        top_reasons = []
-        for feat_name, val in feature_contribs[:3]:
-            if val <= 0 and len(top_reasons) > 0:
-                break # Берем топ факторов риска
-            
-            raw_val = feats_dict[feat_name]
-            template_dict = REASONS.get(feat_name, {"en": f"{feat_name}: {raw_val}"})
-            template = template_dict.get(lang, template_dict["en"])
-            
-            # Подставляем форматированные значения
-            if "pct" in template:
-                formatted_val = round(raw_val * 100, 1)
-                text = template.format(pct=formatted_val)
-            else:
-                text = template.format(val=round(raw_val, 2))
-                
-            top_reasons.append({
-                "feature": feat_name,
-                "contribution": float(val),
-                "text": text
-            })
-            
-        money_at_risk = float(prob * outstanding)
-        
-        return {
-            "probability": prob,
-            "band": band,
-            "money_at_risk": money_at_risk,
-            "features": feats_dict,
-            "reasons": top_reasons
-        }
+    def thresholds(self, segment: str = "micro_business") -> dict:
+        shift = self.policy["segments"].get(segment, {"shift": 0.0})["shift"]
+        t = self.meta["thresholds"]
+        return {"red": round(t["red"] + shift, 4), "yellow": round(t["yellow"] + shift, 4), "segment_shift": shift}
+
+    def band(self, prob: float, segment: str = "micro_business") -> str:
+        t = self.thresholds(segment)
+        return "red" if prob >= t["red"] else ("yellow" if prob >= t["yellow"] else "green")
+
+    def score(self, due, paid, delay) -> dict:
+        feats = make_features(due, paid, delay)
+        X = np.array([[feats[f] for f in FEATURES]])
+        raw = float(self.booster.predict(X)[0])
+        prob = float(np.clip(np.interp(raw, self.cal_x, self.cal_y), 0, 1))
+        contrib = self.booster.predict(X, pred_contrib=True)[0][:-1]  # last column = bias
+        return {"prob": prob, "features": feats, "contrib": dict(zip(FEATURES, map(float, contrib)))}
+
+    def score_history(self, history) -> dict:
+        h = history[-6:]
+        return self.score([x["due"] for x in h], [x["paid"] for x in h], [delay_months(x["days_late"]) for x in h])
+
+    @staticmethod
+    def reasons(features: dict, contrib: dict, lang: str = "en", k: int = 3) -> list:
+        top = sorted(((f, c) for f, c in contrib.items() if c > 0), key=lambda x: -x[1])[:k]
+        if not top:
+            return [{"feature": None, "contribution": 0.0, "text": NO_RISK.get(lang, NO_RISK["en"])}]
+        return [{"feature": f, "contribution": round(c, 4), "value": round(features[f], 4),
+                 "text": reason_text(f, features[f], lang)} for f, c in top]

@@ -1,89 +1,143 @@
 {
-  "model_version": "lgbm-uci-v1-2026-10-10",
-  "trained_at": "2026-10-10T11:40:50.546146+00:00",
-  "n_train": 24000,
-  "n_test": 6000,
-  "base_rate": 0.22120833333333334,
-  "cv_auc_lgbm": 0.7637337863767497,
-  "cv_auc_logreg": 0.7461433261273177,
-  "holdout_auc": 0.7559868287268442,
-  "holdout_pr_auc": 0.5317246525384902,
-  "holdout_brier": 0.13632618551200268,
+  "model_version": "lgbm-mono-uci-v2-2026-10-10",
+  "trained_at": "2026-10-10T16:01:46+00:00",
+  "data": "UCI Default of credit card clients (CC BY 4.0): 22,384 of 30,000 borrowers who owed money in all 6 months (installment-like); demographics removed",
+  "n_train": 17907,
+  "n_test": 4477,
+  "base_rate": 0.22632237312365977,
+  "cv_auc_lightgbm": 0.7781423620071444,
+  "cv_auc_lightgbm_unconstrained": 0.784712073115527,
+  "cv_auc_logreg": 0.7691674350513271,
+  "monotone_constraints": {
+    "delay_last": 1,
+    "delay_max_recent": 1,
+    "n_delay_months": 1,
+    "delay_trend": 1,
+    "paid_last_vs_norm": -1,
+    "paid_recent_vs_norm": -1,
+    "cover_last": -1,
+    "cover_mean": -1,
+    "cover_drop": 1,
+    "due_growth": 1,
+    "zero_pay_months": 1,
+    "decline_streak": 1
+  },
+  "holdout_auc": 0.7650166769639035,
+  "holdout_pr_auc": 0.5471213742350671,
+  "holdout_brier": 0.13373758966255692,
   "red": {
-    "threshold": 0.380327868852459,
-    "precision": 0.6375442739079102,
-    "recall": 0.4069329314242653,
-    "flagged_ratio": 0.14116666666666666
+    "threshold": 0.3484848484848485,
+    "flagged_share": 0.17869108778199688,
+    "precision": 0.62125,
+    "recall": 0.4906219151036525
   },
   "yellow_or_red": {
-    "threshold": 0.14084507042253522,
-    "precision": 0.35679702048417133,
-    "recall": 0.7219291635267521,
-    "flagged_ratio": 0.4475
+    "threshold": 0.12389380530973451,
+    "flagged_share": 0.4567790931427295,
+    "precision": 0.36968215158924206,
+    "recall": 0.7462981243830207
   },
-  "top10_capture": 0.31273549359457425,
+  "top10_capture": 0.35636722606120436,
   "hidden_defaulters": {
-    "capture_in_top10": 0.0,
-    "capture_in_top20": 0.17391304347826086
+    "n_test_defaulters": 1013,
+    "n_defaulters_not_late_yet": 488,
+    "share_of_defaulters_not_late_yet": 0.4817374136229023,
+    "n_not_late": 3577,
+    "default_rate_not_late": 0.1364271736091697,
+    "auc_within_not_late": 0.6115101709397174,
+    "top10_within_not_late_default_rate": 0.2800875273522976,
+    "top10_within_not_late_lift": 2.053018617498296,
+    "top10_within_not_late_capture": 0.26229508196721313,
+    "found_in_overall_top20": 0.0942622950819672
   },
   "rule_vs_model": {
-    "rule_prec": 0.4984894259818731,
-    "rule_rec": 0.49736247174076864,
-    "model_prec": 0.5349854227405247,
-    "model_rec": 0.5531273549359458
+    "missed_1_month": {
+      "alerts": 900,
+      "rule_precision": 0.5833333333333334,
+      "rule_recall": 0.5182625863770978,
+      "model_precision": 0.5933333333333334,
+      "model_recall": 0.527147087857848
+    },
+    "missed_2_months": {
+      "alerts": 549,
+      "rule_precision": 0.7030965391621129,
+      "rule_recall": 0.3810463968410661,
+      "model_precision": 0.7049180327868853,
+      "model_recall": 0.3820335636722606
+    }
   },
-  "horizon": {
-    "horizon_1": 0.7232497418591078,
-    "horizon_2": 0.7033634189964926,
-    "horizon_3": 0.6799061807226525
+  "horizon_auc": {
+    "1_month_ahead": 0.7650166769639035,
+    "2_months_ahead": 0.7372139951986759,
+    "3_months_ahead": 0.7066611247774315,
+    "4_months_ahead": 0.6877862612823138
   },
-  "reference_with_limit_and_levels": 0.7285177834603087,
+  "reference_auc_with_absolute_columns": 0.7956389397417865,
   "fairness": {
-    "sex_1_auc": 0.753926458243166,
-    "sex_2_auc": 0.7573368883775133,
-    "age_under_30_auc": 0.7621768031604097,
-    "age_30_45_auc": 0.7514341384289756,
-    "age_over_45_auc": 0.7560027927887017
+    "female": {
+      "n": 2589,
+      "auc": 0.7731155473379658,
+      "red_share": 0.1637697952877559,
+      "default_rate": 0.21166473541908074
+    },
+    "male": {
+      "n": 1888,
+      "auc": 0.754999659964183,
+      "red_share": 0.19915254237288135,
+      "default_rate": 0.24629237288135594
+    },
+    "age_under_30": {
+      "n": 1459,
+      "auc": 0.7823132403395858,
+      "red_share": 0.20493488690884168,
+      "default_rate": 0.25017135023989034
+    },
+    "age_30_45": {
+      "n": 2307,
+      "auc": 0.7515048766058732,
+      "red_share": 0.1551798872995232,
+      "default_rate": 0.20546163849154747
+    },
+    "age_over_45": {
+      "n": 711,
+      "auc": 0.7578608275005887,
+      "red_share": 0.2011251758087201,
+      "default_rate": 0.24472573839662448
+    }
   },
-  "feature_importance": {
-    "delay_last": 0.026607142857142857,
-    "delay_max_recent": 0.02125,
-    "n_delay_months": 0.03446428571428571,
-    "delay_trend": 0.03125,
-    "paid_last_vs_norm": 0.10660714285714286,
-    "paid_recent_vs_norm": 0.11571428571428571,
-    "cover_last": 0.09,
-    "cover_mean": 0.12428571428571429,
-    "cover_drop": 0.115,
-    "due_growth": 0.14857142857142858,
-    "paid_cv": 0.13303571428571428,
-    "zero_pay_months": 0.03785714285714286,
-    "decline_streak": 0.015357142857142857
+  "latency_ms_per_score": 0.06686166666137676,
+  "feature_importance_gain": {
+    "delay_last": 0.21358718255389358,
+    "delay_max_recent": 0.5545844852706783,
+    "n_delay_months": 0.16167841503226818,
+    "delay_trend": 0.0016192788154202331,
+    "paid_last_vs_norm": 0.004328531656195218,
+    "paid_recent_vs_norm": 0.004977193076990743,
+    "cover_last": 0.004298921585802472,
+    "cover_mean": 0.015293638053959455,
+    "cover_drop": 0.0011331778041355671,
+    "due_growth": 0.0032021420201313994,
+    "zero_pay_months": 0.03303426896222486,
+    "decline_streak": 0.0022627651683000067
   },
   "reliability": {
-    "pred": [
-      0.0859042092279181,
-      0.13637878427187025,
-      0.2508975089049391,
-      0.3496454857281309,
-      0.4888888888888888,
-      0.5555894463931665,
-      0.6595816386915598,
-      0.7331331026739701,
-      0.8152460152460151,
-      1.0
+    "predicted": [
+      0.09486107284882969,
+      0.11645914529322697,
+      0.13419801142656695,
+      0.15549949690824408,
+      0.271887898988082,
+      0.5184354797881429,
+      0.7281359190398575
     ],
-    "true": [
-      0.08873056994818652,
-      0.13636363636363635,
-      0.23015873015873015,
-      0.3686868686868687,
-      0.7142857142857143,
-      0.536144578313253,
-      0.6355140186915887,
-      0.7146974063400576,
-      0.8846153846153846,
-      1.0
+    "observed": [
+      0.10476663356504469,
+      0.11004784688995216,
+      0.14615384615384616,
+      0.14733542319749215,
+      0.2891791044776119,
+      0.5013262599469496,
+      0.7281323877068558
     ]
   }
 }

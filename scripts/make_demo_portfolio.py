@@ -1,107 +1,149 @@
+"""Generate the SYNTHETIC MKBANK-style demo portfolio (no real people, seed 42).
+
+Every borrower gets 12 months (Oct 2025 - Sep 2026) of: amount due, amount paid,
+days late, business turnover, card transactions and app logins, plus profile
+fields (segment, client tenure, guarantor, app). Scenarios: healthy, seasonal
+stress, deteriorating (card and app activity fall 1-2 months BEFORE payments),
+and sudden shock (a known blind spot of any model).
+DEMO-001 "Dilnoza R." is a fixed, hand-written story used in the pitch.
+Run from the repository root: python scripts/make_demo_portfolio.py
+"""
 import json
 import random
+from pathlib import Path
 
-def annuity(B, r_annual, n):
-    """Расчет аннуитетного платежа"""
-    r = r_annual / 12
-    return B * r / (1 - (1 + r)**-n)
+OUT = Path(__file__).resolve().parents[1] / "data" / "demo_portfolio.json"
+N = 500
+CAL = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+       "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+MONTH_IDX = [9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7, 8]  # calendar month (0 = Jan) of each column
+
+# Seasonal turnover multipliers, Jan..Dec (mean ~1). Assumptions for the demo.
+SEASONALITY = {
+    "tailoring":        [0.8, 0.8, 1.25, 1.25, 1.2, 0.9, 0.85, 1.2, 1.2, 1.0, 0.8, 0.75],
+    "greenhouse":       [0.7, 1.2, 1.3, 1.3, 1.25, 1.0, 0.55, 0.5, 0.8, 0.95, 0.85, 0.6],
+    "livestock":        [0.85, 0.85, 0.9, 0.9, 0.95, 1.2, 1.25, 1.2, 0.9, 0.9, 0.9, 1.2],
+    "retail_shop":      [0.9, 0.9, 1.2, 0.95, 0.95, 0.95, 0.95, 0.95, 1.0, 1.0, 1.05, 1.2],
+    "bakery":           [1.0, 1.0, 1.05, 1.0, 1.0, 0.95, 0.95, 0.95, 1.0, 1.0, 1.0, 1.1],
+    "wedding_services": [0.45, 0.45, 0.8, 0.95, 1.35, 1.35, 1.0, 1.1, 1.35, 1.35, 0.95, 0.9],
+}
+REGIONS = ["Tashkent", "Tashkent region", "Samarkand", "Bukhara", "Andijan", "Namangan", "Fergana",
+           "Kashkadarya", "Surkhandarya", "Khorezm", "Navoi", "Syrdarya", "Jizzakh", "Karakalpakstan"]
+FIRST = ["Aziz", "Malika", "Jamshid", "Rustam", "Nodira", "Bekzod", "Shahzod", "Gulnoza", "Timur",
+         "Sardor", "Madina", "Otabek", "Zarina", "Farrukh", "Kamola", "Ulugbek", "Dildora", "Sherzod",
+         "Nilufar", "Javlon", "Feruza", "Akmal", "Sevara", "Bobur", "Lola", "Dilshod", "Munisa"]
+OFFICERS = ["Kamola T.", "Sanjar M.", "Dilfuza A.", "Rustam Y.", "Oybek N.", "Shahnoza K."]
+SCENARIOS, WEIGHTS = ["healthy", "seasonal_stress", "deteriorating", "shock"], [0.72, 0.10, 0.15, 0.03]
+
+
+def annuity(B, annual_rate, n):
+    r = annual_rate / 12
+    return B * r / (1 - (1 + r) ** -n)
+
+
+def balance_after(B, annual_rate, n, k):
+    """Outstanding principal of an annuity loan after k payments."""
+    r, p = annual_rate / 12, annuity(B, annual_rate, n)
+    return B * (1 + r) ** k - p * ((1 + r) ** k - 1) / r
+
+
+def segment_of(loan):
+    return "household" if loan <= 30_000_000 else ("micro_business" if loan <= 100_000_000 else "sme")
+
+
+def dilnoza():
+    inst = 2_290_000
+    turnover_shape = [1, 1, 1, 1, 1, 1, 1, 1, 0.75, 0.6, 0.5, 0.45]
+    seas = SEASONALITY["tailoring"]
+    turnover = [int(9_100_000 * seas[m] * f) for m, f in zip(MONTH_IDX, turnover_shape)]
+    history = [{"due": inst, "paid": inst, "days_late": 0} for _ in range(9)]
+    # Payments go to the oldest arrears first, so "days late" counts the oldest unpaid part.
+    history += [{"due": 2_290_000, "paid": 1_500_000, "days_late": 9},
+                {"due": 3_080_000, "paid": 1_200_000, "days_late": 24},
+                {"due": 4_170_000, "paid": 920_000, "days_late": 35}]
+    return {
+        "id": "DEMO-001", "name": "Dilnoza R.", "region": "Samarkand", "business_type": "tailoring",
+        "segment": "micro_business", "loan_amount": 60_000_000, "annual_rate": 0.22, "term_months": 36,
+        "months_elapsed": 14, "outstanding": 41_000_000, "installment": inst,
+        "client_since_months": 52, "prior_loans_repaid": 1, "has_guarantor": True, "has_app": True,
+        "assigned_officer": "Kamola T.", "last_app_login_days": 19,
+        "calendar_months": CAL, "history": history, "turnover": turnover,
+        "card_txn_count": [118, 121, 117, 115, 119, 124, 126, 122, 96, 78, 61, 49],
+        "app_logins": [18, 17, 19, 16, 18, 20, 19, 18, 15, 9, 4, 2],
+        "scenario": "deteriorating",
+    }
+
+
+def borrower(i, rng):
+    biz = rng.choice(list(SEASONALITY))
+    scenario = rng.choices(SCENARIOS, WEIGHTS)[0]
+    loan = rng.choice([15, 20, 25, 30, 40, 50, 60, 80, 100, 120, 150, 200]) * 1_000_000
+    rate = round(rng.uniform(0.14, 0.28), 4)
+    term = rng.choice([24, 36])
+    elapsed = rng.randint(6, min(20, term - 4))
+    inst = int(annuity(loan, rate, term))
+    outstanding = int(balance_after(loan, rate, term, elapsed))
+    base_turn = inst * rng.uniform(3.0, 5.5)
+    seas = SEASONALITY[biz]
+
+    drop_start = rng.randint(7, 9)       # month index where turnover starts falling
+    drop = rng.uniform(0.35, 0.65)       # depth of the fall
+    turnover, history, cards, logins = [], [], [], []
+    arrears, days_late = 0, 0
+    base_cards, base_logins = rng.randint(40, 160), rng.randint(6, 25)
+    has_app = rng.random() < 0.7
+
+    for j, m in enumerate(MONTH_IDX):
+        f = 1.0
+        if scenario == "deteriorating" and j >= drop_start:
+            f = 1 - drop * min(1.0, (j - drop_start + 1) / 2)
+        if scenario == "shock" and j == 11:
+            f = 0.15
+        t = base_turn * seas[m] * f * rng.uniform(0.93, 1.07)
+        turnover.append(int(t))
+        cards.append(max(0, int(base_cards * seas[m] * f * rng.uniform(0.9, 1.1))))
+        lag = 1 if scenario == "deteriorating" and j >= drop_start + 1 else 0
+        logins.append(max(0, int(base_logins * (f if lag else 1) * rng.uniform(0.8, 1.2))) if has_app else 0)
+
+        due = inst + arrears
+        if scenario == "healthy":
+            paid = due
+        elif scenario == "seasonal_stress":
+            paid = due if seas[m] >= 1.0 else min(due, int(inst * rng.uniform(0.55, 0.9)))
+        elif scenario == "shock" and j == 11:
+            paid = 0
+        else:  # deteriorating (and shock before the shock month): pay what the business allows
+            paid = min(due, int(t * rng.uniform(0.40, 0.55)))
+        arrears = due - paid
+        if arrears > 0:
+            days_late = days_late + 30 if days_late else rng.randint(5, 20)
+        else:
+            days_late = 0
+        history.append({"due": int(due), "paid": int(paid), "days_late": int(min(days_late, 365))})
+
+    last_login = rng.randint(0, 6) if has_app else 99
+    if has_app and scenario == "deteriorating":
+        last_login = rng.randint(10, 35)
+    return {
+        "id": f"DEMO-{i:03d}", "name": f"{rng.choice(FIRST)} {rng.choice('ABDFGKMNORSTUXYZ')}.",
+        "region": rng.choice(REGIONS), "business_type": biz, "segment": segment_of(loan),
+        "loan_amount": loan, "annual_rate": rate, "term_months": term, "months_elapsed": elapsed,
+        "outstanding": outstanding, "installment": inst,
+        "client_since_months": rng.randint(6, 120), "prior_loans_repaid": rng.choices([0, 1, 2, 3], [45, 30, 17, 8])[0],
+        "has_guarantor": rng.random() < 0.6, "has_app": has_app, "assigned_officer": rng.choice(OFFICERS),
+        "last_app_login_days": last_login, "calendar_months": CAL, "history": history, "turnover": turnover,
+        "card_txn_count": cards, "app_logins": logins, "scenario": scenario,
+    }
+
 
 def main():
-    random.seed(42) # Фиксируем seed, чтобы данные были стабильны
-    
-    regions = ["Tashkent", "Samarkand", "Bukhara", "Andijan", "Namangan", "Fergana", 
-               "Kashkadarya", "Surkhandarya", "Khorezm", "Navoi", "Syrdarya", "Jizzakh", "Karakalpakstan", "Tashkent Region"]
-    first_names = ["Aziz", "Malika", "Jamshid", "Rustam", "Nodira", "Bekzod", "Shahzod", "Gulnoza", "Timur"]
-    
-    # 12 множителей сезонности (январь .. декабрь)
-    seasonality = {
-        "tailoring": [0.8, 0.8, 1.2, 1.2, 1.2, 1.0, 0.9, 1.2, 1.2, 1.0, 0.9, 0.8],
-        "greenhouse": [0.7, 1.2, 1.2, 1.2, 1.2, 1.0, 0.5, 0.5, 0.8, 0.9, 0.9, 0.8],
-        "livestock": [0.9, 0.9, 0.9, 0.9, 0.9, 1.2, 1.2, 1.2, 0.9, 0.9, 0.9, 1.2],
-        "retail_shop": [0.9, 0.9, 1.2, 0.9, 0.9, 0.9, 0.9, 0.9, 1.0, 1.0, 1.1, 1.3],
-        "bakery": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-        "wedding_services": [0.4, 0.4, 0.8, 0.9, 1.3, 1.3, 1.0, 1.1, 1.3, 1.3, 0.8, 0.6]
-    }
-    
-    scenarios = ["healthy", "seasonal_stress", "deteriorating", "shock"]
-    weights = [0.72, 0.10, 0.15, 0.03]
-    
-    # Месяцы: от октября 2025 до сентября 2026. Индексы от 0 (янв) до 11 (дек)
-    calendar_months = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", 
-                       "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
-    month_indices = [9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7, 8]
-    
-    portfolio = []
-    
-    for i in range(500):
-        is_dilnoza = (i == 0)
-        borrower_id = f"DEMO-{i+1:03d}"
-        
-        # DEMO-001 - это всегда Дильноза из примера, остальные - случайные
-        name = "Dilnoza R." if is_dilnoza else f"{random.choice(first_names)} {random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}."
-        region = "Samarkand" if is_dilnoza else random.choice(regions)
-        biz_type = "tailoring" if is_dilnoza else random.choice(list(seasonality.keys()))
-        scenario = "deteriorating" if is_dilnoza else random.choices(scenarios, weights=weights)[0]
-        
-        if is_dilnoza:
-            loan_amount, annual_rate, term_months, months_elapsed = 60000000, 0.22, 36, 14
-            outstanding, inst = 41000000, 2290000
-            base_turnover = 9100000
-        else:
-            loan_amount = random.randint(20, 200) * 1000000
-            annual_rate = round(random.uniform(0.14, 0.28), 4)
-            term_months = random.choice([24, 36])
-            months_elapsed = random.randint(6, 20)
-            inst = int(annuity(loan_amount, annual_rate, term_months))
-            outstanding = int(loan_amount * (1 - months_elapsed/term_months))
-            base_turnover = inst * random.uniform(3.0, 5.0)
-            
-        history = []
-        turnover = []
-        past_unpaid, days_late = 0, 0
-        
-        for m_idx, cal_str in zip(month_indices, calendar_months):
-            s = seasonality[biz_type][m_idx]
-            t_m = base_turnover * s * random.uniform(0.95, 1.05)
-            
-            # Применение сценариев
-            is_recent = cal_str >= "2026-06"
-            if scenario == "deteriorating" and is_recent:
-                t_m *= random.uniform(0.4, 0.7) # Падение выручки на 30-60%
-            elif scenario == "shock" and cal_str == "2026-09":
-                t_m *= 0.1 # Внезапный обрыв
-                
-            turnover.append(int(t_m))
-            
-            due = inst + past_unpaid
-            capacity = random.uniform(0.4, 0.6)
-            
-            if scenario == "healthy":
-                paid = due
-            elif scenario == "seasonal_stress":
-                paid = min(due, int(t_m * capacity)) if s < 1.0 else due
-            else:
-                paid = min(due, int(t_m * capacity))
-                
-            if paid < due:
-                past_unpaid = due - paid
-                days_late = min(365, days_late + 30)
-            else:
-                past_unpaid = 0
-                days_late = 0
-                
-            history.append({"due": int(due), "paid": int(paid), "days_late": int(days_late)})
-            
-        portfolio.append({
-            "id": borrower_id, "name": name, "region": region, "business_type": biz_type,
-            "loan_amount": loan_amount, "annual_rate": annual_rate, "term_months": term_months, 
-            "months_elapsed": months_elapsed, "outstanding": outstanding, "installment": inst,
-            "calendar_months": calendar_months, "history": history, "turnover": turnover, "scenario": scenario
-        })
-        
-    with open("data/demo_portfolio.json", "w", encoding="utf-8") as f:
-        json.dump(portfolio, f, ensure_ascii=False, indent=2)
-    print("Демо-портфель успешно сгенерирован: data/demo_portfolio.json")
+    rng = random.Random(42)
+    portfolio = [dilnoza()] + [borrower(i, rng) for i in range(2, N + 1)]
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(portfolio, ensure_ascii=False), encoding="utf-8")
+    counts = {s: sum(b["scenario"] == s for b in portfolio) for s in SCENARIOS}
+    print(f"Saved {len(portfolio)} synthetic borrowers to {OUT} | scenarios {counts}")
+
 
 if __name__ == "__main__":
     main()

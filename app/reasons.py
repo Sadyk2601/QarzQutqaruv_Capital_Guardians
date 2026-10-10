@@ -1,67 +1,101 @@
+"""Plain-language reasons for the top risk factors (EN / RU / UZ).
+
+{v} = months or counts, {pct} = value x 100 as a percentage, {pp} = points.
+"""
 REASONS = {
     "delay_last": {
-        "en": "Current delay is {val} months",
-        "ru": "Текущая просрочка составляет {val} мес.",
-        "uz": "Joriy kechikish {val} oyni tashkil etadi",
+        "en": "Currently {v} month(s) behind on payments",
+        "ru": "Сейчас просрочка {v} мес.",
+        "uz": "Hozir to'lov {v} oyga kechikkan",
     },
     "delay_max_recent": {
-        "en": "Maximum delay in recent months reached {val} months",
-        "ru": "Максимальная просрочка за последние месяцы достигла {val} мес.",
-        "uz": "So'nggi oylardagi maksimal kechikish {val} oylarga yetdi",
+        "en": "Up to {v} month(s) late in the last 2 months",
+        "ru": "За последние 2 месяца просрочка доходила до {v} мес.",
+        "uz": "Oxirgi 2 oyda kechikish {v} oygacha yetgan",
     },
     "n_delay_months": {
-        "en": "Total delayed months in history: {val}",
-        "ru": "Всего месяцев с просрочкой в истории: {val}",
-        "uz": "Tarixdagi kechiktirilgan oylarning umumiy soni: {val}",
+        "en": "Late in {v} of the last 6 months",
+        "ru": "Просрочка в {v} из последних 6 месяцев",
+        "uz": "Oxirgi 6 oyning {v} tasida kechikish bo'lgan",
     },
     "delay_trend": {
-        "en": "Delay trend is changing by {val}",
-        "ru": "Тренд просрочки изменился на {val}",
-        "uz": "Kechikish tendentsiyasi {val} ga o'zgardi",
+        "en": "Delays are growing: +{v} month(s) versus earlier months",
+        "ru": "Просрочки растут: +{v} мес. по сравнению с прошлыми месяцами",
+        "uz": "Kechikishlar o'smoqda: oldingi oylarga nisbatan +{v} oy",
     },
     "paid_last_vs_norm": {
         "en": "Last payment was {pct}% of this borrower's usual payment",
         "ru": "Последний платёж — {pct}% от обычного платежа этого заёмщика",
-        "uz": "Oxirgi to'lov ushbu qarzdorning odatiy to'lovining {pct}% ini tashkil etdi",
+        "uz": "Oxirgi to'lov qarzdorning odatiy to'lovining {pct}% ini tashkil etdi",
     },
     "paid_recent_vs_norm": {
-        "en": "Recent payments averaged {pct}% of the historical norm",
-        "ru": "Платёж за последние месяцы составил {pct}% от исторической нормы",
-        "uz": "So'nggi to'lovlarning o'rtacha miqdori tarixiy normaning {pct}% ini tashkil etdi",
+        "en": "Last 2 payments averaged {pct}% of the borrower's own norm",
+        "ru": "Последние 2 платежа в среднем — {pct}% от собственной нормы заёмщика",
+        "uz": "Oxirgi 2 ta to'lov o'rtacha qarzdorning o'z me'yorining {pct}% i",
     },
     "cover_last": {
-        "en": "Last payment covered {pct}% of the due amount",
-        "ru": "Последний платёж покрыл {pct}% от суммы к оплате",
-        "uz": "Oxirgi to'lov to'lanishi kerak bo'lgan summaning {pct}% ini yopdi",
+        "en": "Last payment covered only {pct}% of the amount due",
+        "ru": "Последний платёж покрыл лишь {pct}% суммы к оплате",
+        "uz": "Oxirgi to'lov to'lanishi kerak bo'lgan summaning atigi {pct}% ini qopladi",
     },
     "cover_mean": {
-        "en": "Average historical coverage is {pct}%",
-        "ru": "Среднее историческое покрытие составляет {pct}%",
-        "uz": "O'rtacha tarixiy qoplash ko'rsatkichi {pct}% ni tashkil etadi",
+        "en": "On average only {pct}% of the amount due was paid",
+        "ru": "В среднем оплачивалось лишь {pct}% суммы к оплате",
+        "uz": "O'rtacha to'lanishi kerak bo'lgan summaning atigi {pct}% i to'langan",
     },
     "cover_drop": {
-        "en": "Payment coverage dropped by {pct}% recently",
-        "ru": "Покрытие платежами снизилось на {pct}% за последнее время",
-        "uz": "To'lov qoplami yaqinda {pct}% ga kamaydi",
+        "en": "Share of the amount due that gets paid fell by {pp} points",
+        "ru": "Доля оплачиваемой суммы упала на {pp} п.п.",
+        "uz": "To'lanayotgan summa ulushi {pp} punktga kamaydi",
     },
     "due_growth": {
-        "en": "Due amount grew to {pct}% compared to historical baseline",
-        "ru": "Сумма к оплате выросла до {pct}% по сравнению с базовым уровнем",
-        "uz": "To'lov summasi tarixiy bazaga nisbatan {pct}% gacha o'sdi",
+        "en": "Amount due grew to {pct}% of the usual level (arrears are building up)",
+        "ru": "Сумма к оплате выросла до {pct}% от обычной (копится долг)",
+        "uz": "To'lanishi kerak bo'lgan summa odatdagining {pct}% igacha o'sdi (qarz yig'ilmoqda)",
     },
     "paid_cv": {
-        "en": "Payment volatility index is {val}",
-        "ru": "Индекс нестабильности платежей равен {val}",
-        "uz": "To'lovlarning o'zgaruvchanlik indeksi {val}",
+        "en": "Payments are unstable (variation {pct}%)",
+        "ru": "Платежи нестабильны (разброс {pct}%)",
+        "uz": "To'lovlar beqaror (o'zgaruvchanlik {pct}%)",
     },
     "zero_pay_months": {
-        "en": "Number of zero-payment months: {val}",
-        "ru": "Количество месяцев с нулевой оплатой: {val}",
-        "uz": "Nolinchi to'lov oylarining soni: {val}",
+        "en": "{v} month(s) with no payment at all",
+        "ru": "{v} мес. без единого платежа",
+        "uz": "{v} oy umuman to'lov qilinmagan",
     },
     "decline_streak": {
-        "en": "Payments have been declining for {val} consecutive months",
-        "ru": "Платёж падает подряд в течение {val} месяцев",
-        "uz": "To'lovlar ketma-ket {val} oy davomida kamayib bormoqda",
-    }
+        "en": "Payments have fallen {v} months in a row",
+        "ru": "Платежи падают {v} мес. подряд",
+        "uz": "To'lovlar ketma-ket {v} oy kamaymoqda",
+    },
 }
+
+NO_RISK = {
+    "en": "No significant risk signals in the payment history",
+    "ru": "В истории платежей нет значимых сигналов риска",
+    "uz": "To'lov tarixida jiddiy xavf belgilari yo'q",
+}
+
+
+FACT_RULES = [  # descriptive "own norm" facts shown next to the model's reasons
+    ("paid_last_vs_norm", lambda v: v < 0.8),
+    ("paid_recent_vs_norm", lambda v: v < 0.8),
+    ("cover_last", lambda v: v < 0.8),
+    ("decline_streak", lambda v: v >= 2),
+    ("due_growth", lambda v: v > 1.2),
+    ("zero_pay_months", lambda v: v >= 1),
+]
+
+
+def own_norm_facts(features: dict, lang: str = "en", skip=()) -> list:
+    return [reason_text(f, features[f], lang) for f, rule in FACT_RULES
+            if f not in skip and f in features and rule(features[f])]
+
+
+def _num(v):
+    return str(int(round(v))) if abs(v - round(v)) < 0.05 else f"{v:.1f}"
+
+
+def reason_text(feature: str, value: float, lang: str = "en") -> str:
+    tpl = REASONS.get(feature, {}).get(lang) or REASONS.get(feature, {}).get("en") or f"{feature}: {value}"
+    return tpl.format(v=_num(value), pct=int(round(value * 100)), pp=int(round(value * 100)))

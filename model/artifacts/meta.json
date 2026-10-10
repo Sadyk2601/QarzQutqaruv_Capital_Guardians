@@ -1,5 +1,5 @@
 {
-  "model_version": "lgbm-uci-v1-2026-10-10",
+  "model_version": "lgbm-mono-uci-v2-2026-10-10",
   "features": [
     "delay_last",
     "delay_max_recent",
@@ -11,13 +11,12 @@
     "cover_mean",
     "cover_drop",
     "due_growth",
-    "paid_cv",
     "zero_pay_months",
     "decline_streak"
   ],
   "thresholds": {
-    "red": 0.380327868852459,
-    "yellow": 0.14084507042253522
+    "red": 0.3484848484848485,
+    "yellow": 0.12389380530973451
   },
   "horizon_months": 1
 }

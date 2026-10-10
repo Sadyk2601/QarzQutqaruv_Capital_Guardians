@@ -1,158 +1,209 @@
-import time
+"""QarzQutqaruv API + website.
+
+Model 1 (risk, LightGBM on public UCI data) -> Model 2 (next best action) ->
+officer decision -> hash-chained audit log -> outcomes teach Model 2.
+"""
 import json
-import os
-import math
-from collections import defaultdict
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+import time
+from collections import defaultdict, deque
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.schemas import ScoreRequest, DecisionRequest
+from app import audit, nba
+from app.actions import annuity, ladder, offer_letter
+from app.counterfactual import path_to_green
+from app.reasons import own_norm_facts
+from app.schemas import DecisionRequest, OutcomeRequest, ScoreRequest
 from app.scoring import ScoringEngine
-from app.actions import generate_actions
-from app.audit import log_event, verify, get_recent_logs
 
-app = FastAPI(title="QarzQutqaruv API")
+ROOT = Path(__file__).resolve().parents[1]
+STATIC = Path(__file__).parent / "static"
+POST_LIMIT_PER_MIN = 60
+CAL = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
+       "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
 
-# --- Лимит запросов (Rate Limiter) ---
-ip_records = defaultdict(list)
-RATE_LIMIT = 30 # максимум 30 POST-запросов в минуту
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.method == "POST":
-            client_ip = request.client.host
-            now = time.time()
-            ip_records[client_ip] = [ts for ts in ip_records[client_ip] if now - ts < 60]
-            if len(ip_records[client_ip]) >= RATE_LIMIT:
-                return JSONResponse(status_code=429, content={"detail": "Too many requests"})
-            ip_records[client_ip].append(now)
-        
-        start_time = time.time()
-        response = await call_next(request)
-        process_time = int((time.time() - start_time) * 1000)
-        response.headers["X-Process-Time-ms"] = str(process_time)
-        return response
-
-app.add_middleware(RateLimitMiddleware)
-
-# --- Инициализация в памяти ---
 engine = ScoringEngine()
-portfolio_data = []
+PORTFOLIO = {}
+_hits = defaultdict(deque)
 
-def calc_delay_months(days_late: int) -> int:
-    return min(9, math.ceil(days_late / 30))
 
-@app.on_event("startup")
+@asynccontextmanager
+async def lifespan(_app):
+    load_portfolio()
+    yield
+
+
+app = FastAPI(title="QarzQutqaruv API", version="1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def guard(request: Request, call_next):
+    """Rate-limit POSTs per client IP (behind a proxy the first X-Forwarded-For entry)."""
+    if request.method == "POST":
+        ip = (request.headers.get("x-forwarded-for") or request.client.host or "?").split(",")[0].strip()
+        now, q = time.time(), _hits[ip]
+        while q and now - q[0] > 60:
+            q.popleft()
+        if len(q) >= POST_LIMIT_PER_MIN:
+            return JSONResponse({"detail": "Too many requests, try again in a minute"}, status_code=429)
+        q.append(now)
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _score(b):
+    s = engine.score_history(b["history"])
+    b.update(prob=s["prob"], features=s["features"], contrib=s["contrib"],
+             band=engine.band(s["prob"], b.get("segment", "micro_business")))
+    b["money_at_risk"] = b["prob"] * b["outstanding"]
+    return b
+
+
 def load_portfolio():
-    global portfolio_data
-    with open("data/demo_portfolio.json", "r", encoding="utf-8") as f:
-        raw_portfolio = json.load(f)
-    
-    # Предрасчет всех 500 заемщиков при старте сервера
-    for b in raw_portfolio:
-        use_len = min(len(b["history"]), 6)
-        hist = b["history"][-use_len:]
-        
-        due = [h["due"] for h in hist]
-        paid = [h["paid"] for h in hist]
-        delay = [calc_delay_months(h["days_late"]) for h in hist]
-        
-        res = engine.score(due, paid, delay, lang="en", outstanding=b["outstanding"])
-        b["prob"] = res["probability"]
-        b["band"] = res["band"]
-        b["money_at_risk"] = res["money_at_risk"]
-        b["reasons"] = res["reasons"]
-        b["features"] = res["features"]
-        
-        rem_months = b["term_months"] - b["months_elapsed"]
-        b["actions"] = generate_actions(b["band"], b["outstanding"], b["annual_rate"], rem_months, b.get("turnover"))
-        portfolio_data.append(b)
+    PORTFOLIO.clear()
+    for b in json.loads((ROOT / "data" / "demo_portfolio.json").read_text(encoding="utf-8")):
+        PORTFOLIO[b["id"]] = _score(b)
 
-# --- API Эндпоинты ---
+
+def card(b, lang="en"):
+    """Everything the officer sees for one borrower."""
+    remaining = b["term_months"] - b["months_elapsed"]
+    inst = b.get("installment") or int(annuity(b["outstanding"], b["annual_rate"], remaining))
+    reasons = engine.reasons(b["features"], b["contrib"], lang)
+    rec = nba.recommend(b, b["band"], b["prob"], b["features"])
+    acts = ladder(b["band"], b["outstanding"], b["annual_rate"], remaining, inst, b["business_type"], b.get("turnover"))
+    plan = next((a.get("plan") for a in acts if a["code"] == "rescue_plan"), None)
+    ptg = path_to_green(engine, b["history"], inst, b.get("segment", "micro_business"), b["prob"], lang) \
+        if b["band"] != "green" else None
+    keep = ("id", "name", "region", "business_type", "segment", "loan_amount", "annual_rate", "term_months",
+            "months_elapsed", "outstanding", "installment", "client_since_months", "prior_loans_repaid",
+            "has_guarantor", "has_app", "assigned_officer", "last_app_login_days", "calendar_months", "history",
+            "turnover", "card_txn_count", "app_logins")
+    return {**{k: b.get(k) for k in keep}, "installment": inst,
+            "prob": round(b["prob"], 4), "band": b["band"], "money_at_risk": int(b["money_at_risk"]),
+            "thresholds": engine.thresholds(b.get("segment", "micro_business")),
+            "reasons": reasons, "early_signals": nba.early_signals(b), "path_to_green": ptg,
+            "own_norm_facts": own_norm_facts(b["features"], lang, skip={r["feature"] for r in reasons}),
+            "next_best_action": rec, "actions": acts,
+            "letter": offer_letter(b["name"], plan, b.get("assigned_officer"), lang),
+            "model_version": engine.version, "synthetic": b["id"].startswith("DEMO")}
+
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "model_version": engine.meta["model_version"]}
+    return {"status": "ok", "model_version": engine.version, "borrowers": len(PORTFOLIO)}
+
 
 @app.get("/api/portfolio")
-def get_portfolio(lang: str = "en", sort: str = "risk"):
-    if sort == "money":
-        sorted_data = sorted(portfolio_data, key=lambda x: x["money_at_risk"], reverse=True)
-    else:
-        sorted_data = sorted(portfolio_data, key=lambda x: x["prob"], reverse=True)
-        
-    summary = {"red": 0, "yellow": 0, "green": 0, "total_money_at_risk": 0.0}
-    list_data = []
-    
-    for b in sorted_data:
+def portfolio(lang: str = "en", sort: str = "risk", band: str = "all"):
+    key = "money_at_risk" if sort == "money" else "prob"
+    rows = sorted(PORTFOLIO.values(), key=lambda b: -b[key])
+    summary = {"red": 0, "yellow": 0, "green": 0, "money_at_risk": 0, "outstanding": 0}
+    out = []
+    for b in rows:
         summary[b["band"]] += 1
-        summary["total_money_at_risk"] += b["money_at_risk"]
-        top_reason = b["reasons"][0]["text"] if b.get("reasons") else ""
-        list_data.append({
-            "id": b["id"], "name": b["name"], "region": b["region"],
-            "business_type": b["business_type"], "prob": b["prob"],
-            "band": b["band"], "money_at_risk": b["money_at_risk"],
-            "top_reason": top_reason
-        })
-        
-    return {"summary": summary, "borrowers": list_data}
+        summary["money_at_risk"] += int(b["money_at_risk"])
+        summary["outstanding"] += int(b["outstanding"])
+        if band != "all" and b["band"] != band:
+            continue
+        top = engine.reasons(b["features"], b["contrib"], lang, k=1)[0]["text"]
+        out.append({"id": b["id"], "name": b["name"], "region": b["region"], "business_type": b["business_type"],
+                    "segment": b["segment"], "prob": round(b["prob"], 4), "band": b["band"],
+                    "money_at_risk": int(b["money_at_risk"]), "top_reason": top})
+    return {"summary": summary, "borrowers": out}
+
 
 @app.get("/api/borrower/{borrower_id}")
-def get_borrower(borrower_id: str, lang: str = "en"):
-    for b in portfolio_data:
-        if b["id"] == borrower_id:
-            return b
-    raise HTTPException(status_code=404, detail="Borrower not found")
+def borrower(borrower_id: str, lang: str = "en"):
+    b = PORTFOLIO.get(borrower_id)
+    if not b:
+        raise HTTPException(404, "Borrower not found")
+    return card(b, lang)
+
 
 @app.post("/api/score")
-def score_borrower(req: ScoreRequest):
-    start_t = time.time()
-    due = [h.due for h in req.history]
-    paid = [h.paid for h in req.history]
-    delay = [calc_delay_months(h.days_late) for h in req.history]
-    
-    res = engine.score(due, paid, delay, lang=req.lang, outstanding=req.outstanding)
-    rem_months = req.term_months - req.months_elapsed
-    res["actions"] = generate_actions(res["band"], req.outstanding, req.annual_rate, rem_months, req.turnover)
-    
-    # Записываем событие оценки в аудит-журнал
-    payload = req.model_dump()
-    payload.update({"prob": res["probability"], "band": res["band"], "reasons": res["reasons"]})
-    log_event("SCORE", "API", "EXTERNAL", payload, engine.meta["model_version"])
-    
-    res["latency_ms"] = int((time.time() - start_t) * 1000)
-    return res
+def score(req: ScoreRequest):
+    t = time.perf_counter()
+    b = {"id": "JURY", "name": req.name, "region": "-", "business_type": req.business_type,
+         "segment": req.segment, "loan_amount": None, "annual_rate": req.annual_rate,
+         "term_months": req.term_months, "months_elapsed": req.months_elapsed, "outstanding": req.outstanding,
+         "installment": req.installment, "history": [h.model_dump() for h in req.history],
+         "calendar_months": CAL[-len(req.history):],
+         "turnover": req.turnover, "has_app": req.has_app, "last_app_login_days": 0 if req.has_app else 99,
+         "has_guarantor": req.has_guarantor, "prior_loans_repaid": req.prior_loans_repaid,
+         "assigned_officer": "your officer", "client_since_months": None}
+    _score(b)
+    result = card(b, req.lang)
+    result["latency_ms"] = round((time.perf_counter() - t) * 1000, 1)
+    audit.log_event("SCORE", "jury/web", "JURY", {"input": req.model_dump(), "prob": result["prob"],
+                    "band": result["band"]}, engine.version)
+    return result
+
 
 @app.post("/api/decision")
-def record_decision(req: DecisionRequest):
-    return log_event("DECISION", req.officer, req.borrower_id, req.model_dump(), engine.meta["model_version"])
+def decision(req: DecisionRequest):
+    b = PORTFOLIO.get(req.borrower_id)
+    payload = req.model_dump()
+    if b:
+        payload.update(prob=round(b["prob"], 4), band=b["band"])
+    return audit.log_event("DECISION", req.officer, req.borrower_id, payload, engine.version)
+
+
+@app.post("/api/outcome")
+def outcome(req: OutcomeRequest):
+    b = PORTFOLIO.get(req.borrower_id)
+    if not b:
+        raise HTTPException(404, "Borrower not found")
+    if req.action_code not in nba.CATALOG:
+        raise HTTPException(422, "Unknown action")
+    ptype = nba.problem_type(b["features"])
+    audit.add_outcome(ptype, req.action_code, req.resolved)
+    rec = audit.log_event("OUTCOME", "officer", req.borrower_id,
+                          {"action": req.action_code, "resolved": req.resolved, "problem_type": ptype}, engine.version)
+    post = nba.posterior(ptype, req.action_code)
+    return {"logged": rec, "problem_type": ptype, "p_resolve_now": round(post[0] / (post[0] + post[1]), 3),
+            "n_local": post[2]}
+
+
+@app.get("/api/daily-plan")
+def daily_plan(minutes: int = 240, pilot: bool = False, limit: int = 30):
+    minutes = max(0, min(minutes, 5000))
+    plan = nba.daily_plan(PORTFOLIO.values(), minutes, pilot, seed=7 if pilot else None)
+    plan["rows"] = plan["rows"][:max(1, min(limit, 500))]
+    return plan
+
+
+@app.get("/api/nba/knowledge")
+def nba_knowledge():
+    return nba.knowledge()
+
 
 @app.get("/api/audit")
-def get_audit(limit: int = 50):
-    return get_recent_logs(limit)
+def audit_log(limit: int = 50):
+    return audit.recent(max(1, min(limit, 200)))
+
 
 @app.get("/api/audit/verify")
-def verify_audit():
-    return verify()
+def audit_verify():
+    return audit.verify()
+
 
 @app.get("/api/model-card")
-def get_model_card():
-    with open("model/artifacts/metrics.json", "r") as f:
-        metrics = json.load(f)
-    with open("model/artifacts/meta.json", "r") as f:
-        meta = json.load(f)
-    return {"metrics": metrics, "meta": meta}
+def model_card():
+    art = ROOT / "model" / "artifacts"
+    return {"metrics": json.loads((art / "metrics.json").read_text(encoding="utf-8")),
+            "meta": json.loads((art / "meta.json").read_text(encoding="utf-8")),
+            "policy": engine.policy}
 
-# --- Статика (Сайт) ---
-os.makedirs("app/static", exist_ok=True)
 
-@app.get("/", response_class=HTMLResponse)
-def read_index():
-    try:
-        with open("app/static/index.html", "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "<html><body><h1>Site is building... (Proceed to Step 12)</h1></body></html>"
+@app.get("/")
+def index():
+    return FileResponse(STATIC / "index.html")
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+app.mount("/static", StaticFiles(directory=STATIC), name="static")

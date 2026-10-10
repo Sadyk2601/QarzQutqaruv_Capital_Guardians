@@ -1,124 +1,83 @@
-import sqlite3
-import os
-import json
+"""Hash-chained audit log (SQLite) + recorded action outcomes for Model 2.
+
+Each record stores sha256(prev_hash + record). Changing any old record breaks
+the chain, and verify() shows where. Production: append-only storage kept 5+ years.
+"""
 import hashlib
+import json
+import os
+import sqlite3
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
-# Путь для базы данных (можно переопределить через env для Hugging Face)
-AUDIT_DB_PATH = os.environ.get("AUDIT_DB_PATH", "/tmp/audit.db")
+DB_PATH = os.environ.get("AUDIT_DB_PATH") or str(Path(tempfile.gettempdir()) / "qarzqutqaruv_audit.db")
+_outcomes_cache = None
 
-# Фикс для локальной работы на Windows: 
-# если папки /tmp нет, сохраняем базу в текущую директорию
-db_dir = os.path.dirname(AUDIT_DB_PATH)
-if db_dir and not os.path.exists(db_dir):
-    AUDIT_DB_PATH = "audit.db"
 
-def init_db():
-    conn = sqlite3.connect(AUDIT_DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT,
-            event TEXT,
-            actor TEXT,
-            borrower_id TEXT,
-            payload TEXT,
-            model_version TEXT,
-            prev_hash TEXT,
-            hash TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+def _conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""CREATE TABLE IF NOT EXISTS audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, ts_utc TEXT, event TEXT, actor TEXT, borrower_id TEXT,
+        payload TEXT, model_version TEXT, prev_hash TEXT, hash TEXT)""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS outcomes (
+        problem_type TEXT, action TEXT, success INTEGER DEFAULT 0, failure INTEGER DEFAULT 0,
+        PRIMARY KEY (problem_type, action))""")
+    return conn
 
-def compute_hash(record_dict, prev_hash):
-    # Копируем запись, удаляем 'hash', если есть
-    rec = record_dict.copy()
-    rec.pop('hash', None)
-    
-    # Сериализуем данные строго для стабильности хеша
-    payload_str = json.dumps(rec, sort_keys=True, ensure_ascii=False)
-    data_to_hash = prev_hash + payload_str
-    return hashlib.sha256(data_to_hash.encode('utf-8')).hexdigest()
 
-def log_event(event, actor, borrower_id, payload_dict, model_version):
-    init_db()
-    conn = sqlite3.connect(AUDIT_DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("SELECT hash FROM audit ORDER BY id DESC LIMIT 1")
-    row = c.fetchone()
-    prev_hash = row[0] if row else "GENESIS"
-    
-    ts_utc = datetime.now(timezone.utc).isoformat()
-    payload_str = json.dumps(payload_dict, ensure_ascii=False)
-    
-    record = {
-        "ts_utc": ts_utc,
-        "event": event,
-        "actor": actor,
-        "borrower_id": borrower_id,
-        "payload": payload_str,
-        "model_version": model_version,
-        "prev_hash": prev_hash
-    }
-    
-    new_hash = compute_hash(record, prev_hash)
-    
-    c.execute('''
-        INSERT INTO audit (ts_utc, event, actor, borrower_id, payload, model_version, prev_hash, hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (ts_utc, event, actor, borrower_id, payload_str, model_version, prev_hash, new_hash))
-    
-    conn.commit()
-    inserted_id = c.lastrowid
-    
-    c.execute("SELECT * FROM audit WHERE id = ?", (inserted_id,))
-    columns = [desc[0] for desc in c.description]
-    saved_record = dict(zip(columns, c.fetchone()))
-    
-    conn.close()
-    return saved_record
+def _hash(record: dict, prev_hash: str) -> str:
+    body = json.dumps({k: record[k] for k in sorted(record) if k not in ("hash", "id")},
+                      sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256((prev_hash + body).encode("utf-8")).hexdigest()
+
+
+def log_event(event, actor, borrower_id, payload, model_version):
+    with _conn() as conn:
+        row = conn.execute("SELECT hash FROM audit ORDER BY id DESC LIMIT 1").fetchone()
+        prev = row[0] if row else "GENESIS"
+        rec = {"ts_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "event": event,
+               "actor": actor, "borrower_id": borrower_id,
+               "payload": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+               "model_version": model_version, "prev_hash": prev}
+        rec["hash"] = _hash(rec, prev)
+        cur = conn.execute("INSERT INTO audit (ts_utc, event, actor, borrower_id, payload, model_version, prev_hash, hash) "
+                           "VALUES (:ts_utc, :event, :actor, :borrower_id, :payload, :model_version, :prev_hash, :hash)", rec)
+        rec["id"] = cur.lastrowid
+    return rec
+
 
 def verify():
-    init_db()
-    conn = sqlite3.connect(AUDIT_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    
-    c.execute("SELECT * FROM audit ORDER BY id ASC")
-    rows = c.fetchall()
-    conn.close()
-    
-    if not rows:
-        return {"ok": True, "n": 0, "first_bad_id": None}
-        
-    expected_prev_hash = "GENESIS"
-    
-    for row in rows:
-        record = dict(row)
-        stored_hash = record.pop('hash', None)
-        record_id = record.pop('id', None)  # Убираем id из данных для проверки хеша
-        stored_prev_hash = record['prev_hash']
-        
-        if stored_prev_hash != expected_prev_hash:
-            return {"ok": False, "n": len(rows), "first_bad_id": record_id}
-            
-        calculated_hash = compute_hash(record, stored_prev_hash)
-        if calculated_hash != stored_hash:
-            return {"ok": False, "n": len(rows), "first_bad_id": record_id}
-            
-        expected_prev_hash = stored_hash
-        
+    with _conn() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute("SELECT * FROM audit ORDER BY id")]
+    prev = "GENESIS"
+    for r in rows:
+        if r["prev_hash"] != prev or _hash(r, prev) != r["hash"]:
+            return {"ok": False, "n": len(rows), "first_bad_id": r["id"]}
+        prev = r["hash"]
     return {"ok": True, "n": len(rows), "first_bad_id": None}
 
-def get_recent_logs(limit=50):
-    init_db()
-    conn = sqlite3.connect(AUDIT_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))
-    rows = [dict(row) for row in c.fetchall()]
-    conn.close()
-    return rows
+
+def recent(limit=50):
+    with _conn() as conn:
+        conn.row_factory = sqlite3.Row
+        return [dict(r) for r in conn.execute("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))]
+
+
+def add_outcome(problem_type, action, resolved: bool):
+    global _outcomes_cache
+    col = "success" if resolved else "failure"
+    with _conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO outcomes (problem_type, action) VALUES (?, ?)", (problem_type, action))
+        conn.execute(f"UPDATE outcomes SET {col} = {col} + 1 WHERE problem_type = ? AND action = ?",
+                     (problem_type, action))
+    _outcomes_cache = None
+
+
+def outcome_counts():
+    global _outcomes_cache
+    if _outcomes_cache is None:
+        with _conn() as conn:
+            _outcomes_cache = {(t, a): (s, f) for t, a, s, f in conn.execute("SELECT * FROM outcomes")}
+    return _outcomes_cache

@@ -1,0 +1,28 @@
+{
+  "note": "Probability that the borrower resolves the problem within 30 days after the action. Prior = base + lift; weight = 20 pseudo-observations so real pilot outcomes quickly dominate.",
+  "prior_weight": 20,
+  "base": {"slipping": 0.60, "cannot_pay": 0.25, "silent": 0.20},
+  "base_source": "ASSUMPTION",
+  "lifts_pp": {
+    "push":              {"slipping": 3,  "cannot_pay": 0,  "silent": 1,  "source": "ASSUMPTION (at most the SMS effect)"},
+    "sms":               {"slipping": 8,  "cannot_pay": 2,  "silent": 2,  "source": "Cadena & Schoar 2011, NBER w17020: RCT, Uganda, 1,121 SME borrowers; SMS reminder +7-9% on-time payment"},
+    "personal_sms":      {"slipping": 10, "cannot_pay": 3,  "silent": 4,  "source": "Karlan, Morten & Zinman: RCT, Philippines; reminders worked only with the known loan officer's name (size: ASSUMPTION)"},
+    "call":              {"slipping": 12, "cannot_pay": 8,  "silent": 15, "source": "Laudenbach & Siegel 2025, Journal of Finance: RCT, personal calls raise repayment and cut re-default (size: ASSUMPTION)"},
+    "guarantor_call":    {"slipping": null, "cannot_pay": 5, "silent": 12, "source": "ASSUMPTION"},
+    "letter":            {"slipping": 2,  "cannot_pay": 1,  "silent": 4,  "source": "ASSUMPTION"},
+    "visit":             {"slipping": null, "cannot_pay": 12, "silent": 25, "source": "ASSUMPTION"},
+    "restructure_offer": {"slipping": null, "cannot_pay": 30, "silent": 5,  "source": "ASSUMPTION; evidence on flexible schedules is mixed (Field & Pande) -> measured in the pilot"}
+  },
+  "catalog": {
+    "push":              {"title": "Push notification in the app",              "cost": 1,      "minutes": 0},
+    "sms":               {"title": "SMS reminder",                              "cost": 100,    "minutes": 0},
+    "personal_sms":      {"title": "SMS signed by the borrower's own officer",  "cost": 900,    "minutes": 1},
+    "call":              {"title": "Officer phone call",                        "cost": 4000,   "minutes": 5},
+    "guarantor_call":    {"title": "Call the guarantor named in the contract",  "cost": 4000,   "minutes": 5},
+    "letter":            {"title": "Official letter",                           "cost": 15000,  "minutes": 5},
+    "visit":             {"title": "Visit by the mahalla banker",               "cost": 120000, "minutes": 120},
+    "restructure_offer": {"title": "Offer the optimized rescue plan",           "cost": 70000,  "minutes": 30}
+  },
+  "cost_source": "ASSUMPTION: officer time ~800 UZS/min (8M UZS salary / 21 days / 8 h); SMS ~100 UZS; visit includes ~30k transport",
+  "excluded": "Calling relatives or acquaintances who are not parties to the contract: disclosure of bank secrecy and personal data (Law on Bank Secrecy, 2003; Law on Personal Data, 2019)."
+}

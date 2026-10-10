@@ -1,99 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>QarzQutqaruv</title>
-    <link rel="stylesheet" href="/static/style.css" />
-    <!-- Chart.js подключен с CDN для графика -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-  </head>
-  <body>
-    <div class="header">
-      <div class="disclaimer">
-        Synthetic demo data · Model trained on public UCI data
-      </div>
-      <h1>QarzQutqaruv</h1>
-      <div class="lang-switch">
-        <label>Reasons Language:</label>
-        <select id="langSelect">
-          <option value="en">EN</option>
-          <option value="ru">RU</option>
-          <option value="uz">UZ</option>
-        </select>
-      </div>
-      <nav class="tabs">
-        <button class="tab-btn active" data-target="tab-today">Today</button>
-        <button class="tab-btn" data-target="tab-borrower">Borrower</button>
-        <button class="tab-btn" data-target="tab-check">Check (Jury)</button>
-        <button class="tab-btn" data-target="tab-quality">Quality</button>
-        <button class="tab-btn" data-target="tab-audit">Audit Log</button>
-      </nav>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QarzQutqaruv</title>
+<meta name="description" content="Early warning and rescue plans for MKBANK loan officers">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z' fill='%230b3d5c'/%3E%3Cpath d='m10 16 4 4 8-8' stroke='%2341c79a' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z" fill="currentColor"/><path d="m10 16 4 4 8-8" stroke="#41c79a" stroke-width="3" fill="none"/></svg>
+      <div><div class="name">QarzQutqaruv</div><div class="tag">Early warning &amp; rescue plans for MKBANK loan officers</div></div>
     </div>
+    <label class="lang">Language
+      <select id="lang"><option value="en">EN</option><option value="ru">RU</option><option value="uz">UZ</option></select>
+    </label>
+  </div>
+  <div class="notice">Synthetic demo data · Model 1 trained on public UCI data (30,000 borrowers) · Human decides</div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="today">Today</button>
+    <button class="tab" data-tab="borrower">Borrower</button>
+    <button class="tab" data-tab="try">Try it (jury)</button>
+    <button class="tab" data-tab="quality">Model quality</button>
+    <button class="tab" data-tab="audit">Audit log</button>
+    <button class="tab" data-tab="how">How it works</button>
+  </nav>
+</header>
 
-    <div class="content">
-      <!-- 1. Today Tab -->
-      <div id="tab-today" class="tab-pane active">
-        <div class="summary-cards" id="summaryCards"></div>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px">
-          <button class="btn" id="sortRiskBtn">Sort by Risk</button>
-          <button class="btn" id="sortMoneyBtn">Sort by Money</button>
+<main>
+  <section id="today" class="pane active">
+    <div class="steps" style="margin-bottom:14px">
+      <div class="stepcard"><div class="n">Step 1 · Model 1</div><div class="t">Who is in trouble</div><div class="muted">Risk of default next month, compared with the borrower's own norm, with reasons in plain words.</div></div>
+      <div class="stepcard"><div class="n">Step 2 · Model 2</div><div class="t">What to do</div><div class="muted">Best action for each borrower and a plan for the officers' limited minutes.</div></div>
+      <div class="stepcard"><div class="n">Step 3 · Rescue plan</div><div class="t">How to save the loan</div><div class="muted">An affordable schedule for the borrower that costs the bank nothing. A person decides; everything is logged.</div></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Today's plan <span class="pill">Model 2 · next best action</span></h2></div>
+      <p class="muted">Officer time is limited. Model 2 gives each minute to the borrower where it saves the most money; everyone else at risk gets an SMS or push.</p>
+      <div class="row">
+        <label>Officer minutes today <input id="minutes" type="number" min="0" max="5000" value="240"></label>
+        <label class="check"><input id="pilot" type="checkbox"> Pilot mode (exploration + 10% control group)</label>
+        <button class="btn" id="planBtn">Plan my day</button>
+      </div>
+      <div id="plan"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Portfolio</h2>
+        <div class="chips" id="bandChips">
+          <button data-band="all" class="chip on">All</button><button data-band="red" class="chip">Red</button>
+          <button data-band="yellow" class="chip">Yellow</button><button data-band="green" class="chip">Green</button>
         </div>
-        <div id="portfolioList"></div>
+        <div class="chips" id="sortChips">
+          <button data-sort="risk" class="chip on">By risk</button><button data-sort="money" class="chip">By money at risk</button>
+        </div>
       </div>
-
-      <!-- 2. Borrower Tab -->
-      <div id="tab-borrower" class="tab-pane">
-        <div id="borrowerContent">Select a borrower from the 'Today' tab.</div>
-      </div>
-
-      <!-- 3. Check Tab -->
-      <div id="tab-check" class="tab-pane">
-        <h3>Test Custom Data</h3>
-        <textarea
-          id="checkJson"
-          rows="18"
-          style="font-family: monospace"
-        ></textarea>
-        <button id="scoreBtn" class="btn">Score Data</button>
-        <div id="checkResult" style="margin-top: 15px"></div>
-      </div>
-
-      <!-- 4. Quality Tab -->
-      <div id="tab-quality" class="tab-pane">
-        <h3>Model Quality Metrics</h3>
-        <div id="qualityContent">Loading...</div>
-        <h3>Known Limitations</h3>
-        <ul>
-          <li>
-            New loans (<6 months history) are rejected to ensure reliable
-            baseline.
-          </li>
-          <li>
-            Sudden shocks (illness, fire) cannot be predicted by past signals.
-          </li>
-          <li>Model trained on Taiwan data; requires retraining for pilot.</li>
-          <li>
-            Seasonal business drops might look like defaults without 12+ months
-            history.
-          </li>
-          <li>
-            Intentional non-payers with perfect prior history show no signals.
-          </li>
-        </ul>
-      </div>
-
-      <!-- 5. Audit Tab -->
-      <div id="tab-audit" class="tab-pane">
-        <button id="verifyAuditBtn" class="btn">Verify Integrity</button>
-        <div id="verifyResult" style="margin: 10px 0; font-weight: bold"></div>
-        <h3>Recent Logs</h3>
-        <div id="auditList"></div>
-      </div>
+      <div id="list" class="list"></div>
     </div>
-    <script src="/static/app.js"></script>
-  </body>
+  </section>
+
+  <section id="borrower" class="pane"><div id="card"><p class="muted">Open a borrower from the Today tab.</p></div></section>
+
+  <section id="try" class="pane">
+    <div class="panel">
+      <h2>Check any borrower</h2>
+      <p class="muted">Enter the last 6 months of a borrower. The same models score it live; nothing here is pre-computed.</p>
+      <div class="chips" id="presets">
+        <button class="chip" data-preset="dilnoza">Struggling (like Dilnoza)</button>
+        <button class="chip" data-preset="healthy">Healthy</button>
+        <button class="chip" data-preset="silent">Silent</button>
+      </div>
+      <form id="tryForm" autocomplete="off">
+        <div class="grid">
+          <label>Name <input name="name" maxlength="40" value="Jury borrower"></label>
+          <label>Business <select name="business_type">
+            <option value="tailoring">Tailoring</option><option value="greenhouse">Greenhouse</option>
+            <option value="livestock">Livestock</option><option value="retail_shop">Retail shop</option>
+            <option value="bakery">Bakery</option><option value="wedding_services">Wedding services</option>
+            <option value="other">Other</option></select></label>
+          <label>Segment <select name="segment"><option value="household">Household</option>
+            <option value="micro_business" selected>Micro business</option><option value="sme">SME</option></select></label>
+          <label>Outstanding, UZS <input name="outstanding" type="number" min="0" required></label>
+          <label>Annual rate, % <input name="rate" type="number" step="0.1" min="0" max="100" required></label>
+          <label>Term, months <input name="term_months" type="number" min="1" max="120" required></label>
+          <label>Months already paid <input name="months_elapsed" type="number" min="0" max="119" required></label>
+          <label>Monthly installment, UZS <input name="installment" type="number" min="0"></label>
+          <label class="check"><input name="has_app" type="checkbox"> Uses the bank app</label>
+          <label class="check"><input name="has_guarantor" type="checkbox"> Has a guarantor</label>
+        </div>
+        <div class="table-wrap">
+          <table class="months">
+            <thead><tr><th>Month</th><th>Due, UZS</th><th>Paid, UZS</th><th>Days late</th><th>Income, UZS</th></tr></thead>
+            <tbody id="monthRows"></tbody>
+          </table>
+        </div>
+        <button class="btn big" type="submit">Score this borrower</button>
+      </form>
+      <div id="tryError" class="error" role="alert"></div>
+    </div>
+    <div id="tryResult"></div>
+  </section>
+
+  <section id="quality" class="pane"><div id="qualityBody"><p class="muted">Loading…</p></div></section>
+
+  <section id="audit" class="pane">
+    <div class="panel">
+      <h2>Audit log</h2>
+      <p class="muted">Every score, decision and outcome is chained with SHA-256: changing any old record breaks the chain. Production: append-only storage kept 5+ years inside the bank.</p>
+      <button class="btn" id="verifyBtn">Verify integrity</button> <span id="verifyOut" class="verify"></span>
+      <div id="auditList" class="list"></div>
+    </div>
+  </section>
+  <section id="how" class="pane">
+    <div class="panel">
+      <h2>The problem</h2>
+      <p>MKBANK's problem loans grew from <strong>4.4% to 9.9%</strong> of its portfolio in seven months (1 Jan → 1 Aug 2026, 2.28 trillion UZS; Central Bank of Uzbekistan). Banks score borrowers when they give a loan and call them after a missed payment, but the months in between, when a small business can still be saved, are not watched. In our test data, <strong>48% of next month's defaulters had not missed a payment yet</strong>.</p>
+    </div>
+    <div class="steps" style="margin-bottom:14px">
+      <div class="stepcard"><div class="n">Step 1 · Model 1</div><div class="t">Who is in trouble</div>
+        <div class="muted">LightGBM with monotone constraints (more delay can never lower risk), trained on 22,384 real anonymised borrowers (public UCI data). Features compare each borrower with their own history. ROC-AUC 0.765 on an untouched hold-out.</div></div>
+      <div class="stepcard"><div class="n">Step 2 · Model 2</div><div class="t">What to do</div>
+        <div class="muted">For each allowed action (SMS, personal SMS, call, guarantor call, letter, visit, rescue offer) it estimates the loss prevented minus the cost, then spends the officers' minutes where they save the most. It starts from published field experiments and learns from real outcomes.</div></div>
+      <div class="stepcard"><div class="n">Step 3 · Rescue plan</div><div class="t">How to save the loan</div>
+        <div class="muted">"Path back to green": the smallest next payment that lowers the risk. Optimized plan: the smallest term extension with a season-shaped schedule, payment ≤ 30% of income, present value unchanged for the bank. Offer letter in EN / RU / UZ.</div></div>
+    </div>
+    <div class="panel">
+      <h2>What is new compared with a standard early-warning system</h2>
+      <ul class="clean">
+        <li>Standard systems stop at a <strong>watchlist</strong>. We also choose the <strong>action</strong>, plan the <strong>officer's day</strong>, and give a <strong>rescue plan</strong> that is affordable for the borrower and neutral for the bank.</li>
+        <li><strong>Own-norm signals</strong> work for micro-borrowers with no financial statements; card and app activity act as <strong>early signals</strong>.</li>
+        <li>The system <strong>learns which action works</strong> for which problem in Uzbekistan (pilot with a 10% control group).</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Trust and deployment</h2>
+      <ul class="clean">
+        <li><strong>A person decides</strong>; hard steps go to the credit committee. Every score, decision and outcome is in a SHA-256 hash-chained audit log.</li>
+        <li><strong>Customer data never leaves the bank</strong>: one on-prem server, no external API, model files of a few hundred KB, letters from templates.</li>
+        <li>The model does not use sex or age; we check fairness across groups. Thresholds per segment are set by the risk department.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h2>Pilot and business case <span class="pill">assumptions stated in the deck</span></h2>
+      <ul class="clean">
+        <li><strong>3-month shadow pilot</strong> in one branch: the system scores daily, decisions don't change, then we compare with what really happened.</li>
+        <li>Pilot ≈ 208M UZS; bank-wide run ≈ 422M UZS a year; one score ≈ 0.3 UZS.</li>
+        <li>Preventing just 1% of MKBANK's new problem loans keeps ≈ 10.7bn UZS a year. Break-even is 0.06%, about 28 average loans a year.</li>
+        <li>Next: retrain on MKBANK data, KATM credit-bureau "debt carousel" signals, a borrower self-check app, a rate-shock stress test for the Central Bank, other banks and 134 microfinance organisations.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<footer class="foot">Capital Guardians · WIUT Hackathon 2026 · Partner product for MKBANK Risk Management · Decisions are made by people; the system recommends and records.</footer>
+<script src="/static/app.js?v=3"></script>
+</body>
 </html>
