@@ -12,7 +12,7 @@
 - MKBANK's problem loans grew from **4.4% to 9.9%** of its portfolio between 1 Jan and 1 Aug 2026, reaching 2.28 trillion UZS. This is the third-highest ratio among all banks. Source: Central Bank of Uzbekistan, *Problem loans of commercial banks*: [1 Jan 2026](https://cbu.uz/ru/statistics/bankstats/3326242/), [1 Aug 2026](https://cbu.uz/ru/statistics/bankstats/4470299/).
 - In a Central Bank survey of 5,800 people, **61% of borrowers** said they struggle to repay on time ([Kun.uz, Jul 2026](https://kun.uz/en/news/2026/07/21/six-in-10-borrowers-in-uzbekistan-struggle-to-repay-loans-on-time-central-bank-survey)).
 - Scoring at loan issuance exists, and calls after a missed payment exist. The months **in between** are not watched.
-- In our test data, **48% of next month's defaulters had not missed a single payment yet**, so a "missed payment" rule cannot see half of the problem.
+- In our test data, **48% of next month's defaulters were still paying on time the month before** (33% had no late month at all in the last 6), so a "missed payment" rule cannot see half of the problem.
 
 ## How it works
 ```

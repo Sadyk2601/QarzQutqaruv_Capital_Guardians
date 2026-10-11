@@ -303,7 +303,7 @@ async function loadQuality() {
       h("p", { class: "muted" }, `${m.data}. Untouched 20% hold-out (${fmt(m.n_test)} borrowers), evaluated once. Model ${m.model_version}.`),
       h("div", { class: "stat-grid" },
         stat(m.holdout_auc.toFixed(3), "ROC-AUC on the hold-out"),
-        stat(pct(hd.share_of_defaulters_not_late_yet), "of next month's defaulters had NOT missed a payment yet: a 'missed payment' rule cannot see them"),
+        stat(pct(hd.share_of_defaulters_not_late_yet), "of next month's defaulters were still paying on time the month before: a 'missed payment' rule cannot see them"),
         stat(hd.top10_within_not_late_lift.toFixed(1) + "×", `more defaulters in our top-10% list among those not late yet (${pct(hd.top10_within_not_late_default_rate)} vs ${pct(hd.default_rate_not_late)} average)`),
         stat(pct(m.red.precision), `of borrowers we flag red really default (they are ${pct(m.red.flagged_share)} of the book)`),
         stat(m.latency_ms_per_score.toFixed(2) + " ms", "to score one borrower on a laptop CPU"),
@@ -312,7 +312,7 @@ async function loadQuality() {
       tbl(["Rule", "Alerts", "Rule precision", "Model precision", "Rule recall", "Model recall"], [
         ["Missed 2 months (what officers use)", fmt(r2.alerts), pct(r2.rule_precision), pct(r2.model_precision), pct(r2.rule_recall), pct(r2.model_recall)],
         ["Missed 1 month", fmt(r1.alerts), pct(r1.rule_precision), pct(r1.model_precision), pct(r1.rule_recall), pct(r1.model_recall)]]),
-      h("p", { class: "muted" }, "A rule can only see people who are already late. The model also ranks the ones who have not missed a payment yet.")),
+      h("p", { class: "muted" }, "A rule can only see people who are already late. The model also ranks the ones who are still paying on time.")),
     h("div", { class: "panel" }, h("h3", {}, "How early we see risk"),
       tbl(["Horizon", "ROC-AUC"], Object.entries(m.horizon_auc).map(([k, v]) => [k.replaceAll("_", " "), v.toFixed(3)])),
       h("p", { class: "muted" }, `CV AUC: LightGBM ${m.cv_auc_lightgbm.toFixed(3)} vs logistic regression baseline ${m.cv_auc_logreg.toFixed(3)}. Reference with absolute amounts (not transferable to MKBANK loans): ${m.reference_auc_with_absolute_columns.toFixed(3)}.`)),
